@@ -9,7 +9,7 @@
     "seed": "node ./bin/seed",
     "db-init": "./db-init.sh",
     "postinstall": "npm run db-init",
-    "test": "./node_modules/.bin/mocha server/**/*.test.js --reporter spec"
+    "test": "nodemon ./node_modules/.bin/mocha server/**/*.test.js --reporter spec"
   },
   "dependencies": {
     "angular": "1.5.0",

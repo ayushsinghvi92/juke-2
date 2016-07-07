@@ -1,58 +1,90 @@
 'use strict';
 
-juke.controller('AlbumCtrl', function ($scope, $http, $rootScope, $log) {
+juke.factory('StatsFactory', function ($q) {
+  var statsObj = {};
+  statsObj.totalTime = function (album) {
+    var audio = document.createElement('audio');
+    return $q(function (resolve, reject) {
+      var sum = 0;
+      var n = 0;
+      function resolveOrRecur () {
+        if (n >= album.songs.length) resolve(sum);
+        else audio.src = album.songs[n++].audioUrl;
+      }
+      audio.addEventListener('loadedmetadata', function () {
+        sum += audio.duration;
+        resolveOrRecur();
+      });
+      resolveOrRecur();
+    });
+  };
+  return statsObj;
+});
+
+// juke.factory('TimeFormat', function (StatsFactory) {
+//   var timeObject = {};
+//   timeObject.formattedTime = function (album) {
+//     StatsFactory.totalTime(album)
+//     .then(function (secs) {
+//       return String(secs/60) + ':' + String(secs%60);
+//     })
+//   }
+//   return timeObject; 
+// })
+
+juke.factory('GetAlbums', function ($http) {
+  var retObj = {};
+  retObj.fetchAll = function () {
+    return $http.get('/api/albums/')
+    .then(function (res) { return res.data; })
+  }
+  retObj.fetchById = function (id) {
+    return $http.get('/api/albums/' + id)
+    .then(function (res) { return res.data});
+  }
+  return retObj;
+});
+
+juke.controller('AlbumsCtrl', function (GetAlbums, StatsFactory, $scope, $rootScope, $log) {
+  GetAlbums.fetchAll()
+  .then(function (res){
+    res.forEach(function (e) {
+      e.imageUrl = '/api/albums/' + e.id  + '/image';
+    });
+    $scope.albums = res;
+  })
+})
+
+juke.controller('AlbumCtrl', function (GetAlbums, StatsFactory, PlayerFactory, $scope, $rootScope, $log) {
 
   // load our initial data
-  $http.get('/api/albums/')
-  .then(function (res) { return res.data; })
-  .then(function (albums) {
-    return $http.get('/api/albums/' + albums[1].id); // temp: get one
-  })
-  .then(function (res) { return res.data; })
+  // debugger;
+  GetAlbums.fetchById(1)
   .then(function (album) {
-    album.imageUrl = '/api/albums/' + album.id + '/image';
+    album.imageUrl = '/api/albums/' + album.id  + '/image';
     album.songs.forEach(function (song, i) {
       song.audioUrl = '/api/songs/' + song.id + '/audio';
       song.albumIndex = i;
     });
     $scope.album = album;
+    return StatsFactory.totalTime(album)
+  })
+  .then(function (time) {
+    $scope.album.totalTime = Math.floor(time);
   })
   .catch($log.error); // $log service can be turned on and off; also, pre-bound
-
-  // main toggle
-  $scope.toggle = function (song) {
-    if ($scope.playing && song === $scope.currentSong) {
-      $rootScope.$broadcast('pause');
-    } else $rootScope.$broadcast('play', song);
-  };
-
-  // incoming events (from Player, toggle, or skip)
-  $scope.$on('pause', pause);
-  $scope.$on('play', play);
-  $scope.$on('next', next);
-  $scope.$on('prev', prev);
-
-  // functionality
-  function pause () {
-    $scope.playing = false;
+  $scope.playing = function () {
+   return PlayerFactory.isPlaying();
+  }  
+  $scope.currentSong = function () {
+   return PlayerFactory.getCurrentSong();
   }
-  function play (event, song) {
-    $scope.playing = true;
-    $scope.currentSong = song;
-  };
+  // main toggle
 
-  // a "true" modulo that wraps negative to the top of the range
-  function mod (num, m) { return ((num % m) + m) % m; };
-
-  // jump `interval` spots in album (negative to go back, default +1)
-  function skip (interval) {
-    if (!$scope.currentSong) return;
-    var index = $scope.currentSong.albumIndex;
-    index = mod( (index + (interval || 1)), $scope.album.songs.length );
-    $scope.currentSong = $scope.album.songs[index];
-    if ($scope.playing) $rootScope.$broadcast('play', $scope.currentSong);
+  $scope.toggle = function (song) {
+    if (PlayerFactory.isPlaying() && song === PlayerFactory.getCurrentSong) {
+      PlayerFactory.pause();
+    } else PlayerFactory.start(song, $scope.album.songs);
   };
-  function next () { skip(1); };
-  function prev () { skip(-1); };
 
 });

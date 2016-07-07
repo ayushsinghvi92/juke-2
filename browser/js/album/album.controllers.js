@@ -53,26 +53,38 @@ juke.controller('AlbumsCtrl', function (GetAlbums, StatsFactory, $scope, $rootSc
     });
     $scope.albums = res;
   })
+  $scope.$on('viewSwitch', function (arg, data) {
+
+    if(data.name == 'showAlbums')
+      $scope.showAlbums = true;
+    else
+      $scope.showAlbums = false;
+  });
+  $scope.albumClick = function (albumId) {
+    $rootScope.$broadcast ('viewSwitch', {name:"album", id:albumId})
+  }
 })
 
 juke.controller('AlbumCtrl', function (GetAlbums, StatsFactory, PlayerFactory, $scope, $rootScope, $log) {
 
   // load our initial data
   // debugger;
-  GetAlbums.fetchById(1)
-  .then(function (album) {
-    album.imageUrl = '/api/albums/' + album.id  + '/image';
-    album.songs.forEach(function (song, i) {
-      song.audioUrl = '/api/songs/' + song.id + '/audio';
-      song.albumIndex = i;
-    });
-    $scope.album = album;
-    return StatsFactory.totalTime(album)
-  })
-  .then(function (time) {
-    $scope.album.totalTime = Math.floor(time);
-  })
-  .catch($log.error); // $log service can be turned on and off; also, pre-bound
+  var displayAlbum = function (num) {
+    GetAlbums.fetchById(num)
+    .then(function (album) {
+      album.imageUrl = '/api/albums/' + album.id  + '/image';
+      album.songs.forEach(function (song, i) {
+        song.audioUrl = '/api/songs/' + song.id + '/audio';
+        song.albumIndex = i;
+      });
+      $scope.album = album;
+      return StatsFactory.totalTime(album)
+    })
+    .then(function (time) {
+      $scope.album.totalTime = Math.floor(time);
+    })
+    .catch($log.error); // $log service can be turned on and off; also, pre-bound
+  }
   $scope.playing = function () {
    return PlayerFactory.isPlaying();
   }  
@@ -80,6 +92,15 @@ juke.controller('AlbumCtrl', function (GetAlbums, StatsFactory, PlayerFactory, $
    return PlayerFactory.getCurrentSong();
   }
   // main toggle
+  $scope.$on('viewSwitch', function (arg, data) {
+   // debugger;
+    if(data.name == 'album') {
+      $scope.showAlbum = true;
+      displayAlbum(data.id);
+    }
+    else
+      $scope.showAlbum = false;
+  });
 
   $scope.toggle = function (song) {
     if (PlayerFactory.isPlaying() && song === PlayerFactory.getCurrentSong) {
